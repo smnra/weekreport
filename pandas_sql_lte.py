@@ -5,11 +5,12 @@ import arrow
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import ticker
+import SMTPProxy
 from sqlalchemy import create_engine
 from matplotlib.dates import AutoDateLocator, DateFormatter
 
 
+filename = []    #定义邮件附件文件名列表
 
 def getDateRange():
     '''
@@ -96,7 +97,8 @@ class CreateChart:
         self.rrcFig.autofmt_xdate()                                      #设置x轴时间外观
         plt.ylim(self.yRange)                                            #Y轴 显示范围
         self.rrcAx.legend(self.rrcCity.columns,loc="best", ncol=1, shadow=True)  #设置显示图例 以及图例的位置,级是否有阴影效果
-        self.rrcFig.savefig(filePath + tdate['startDate'] + '_' + tdate['endDate'] + '_LTE_' + rowName + '.png')    #保存为 本月起始日期_结束日期_LTE_KPI名称.PNG图片
+        self.pngName = filePath + tdate['startDate'] + '_' + tdate['endDate'] + '_LTE_' + rowName + '.png'
+        self.rrcFig.savefig(self.pngName)    #保存为 本月起始日期_结束日期_LTE_KPI名称.PNG图片
 
 
 
@@ -111,6 +113,7 @@ for i,kpiName in enumerate(df1.columns[2:]):                                #此
     kpi = df1[['日期','地市',kpiName]].fillna(0)                           #取 '日期','地市','rrc建立成功率' 三列数据
     kpiCity = kpi.pivot_table(kpiName, ['日期'], '地市').sort_index(ascending=True)           # 数据列为 'rrc建立成功率', '日期' 列不变,把 '地市'这一列 按照内容转换为多列
     kpiChart = CreateChart()
+    filename.append(kpiChart.pngName)
     kpiChart.createCharts(kpiCity,kpiName,kpiName,yRanges[i])
     #plt.show()
 
@@ -118,3 +121,11 @@ for i,kpiName in enumerate(df1.columns[2:]):                                #此
 
 
 
+mailreceiver = [ 'jing.2.zhang@huanuo-nsb.com']
+mailcc = [ 'smnra@163.com']
+mailTitle = 'LTE ' + tdate['startDate'] + '-' + tdate['endDate'] + ' 周报材料'
+mailBody = 'LTE ' + tdate['startDate'] + '-' + tdate['endDate'] + ' 周报材料'
+mailAttachments = [filename]
+
+sendmail = SMTPProxy.SendMail(mailreceiver, mailcc, mailTitle, mailBody, mailAttachments)    #邮件发送
+sendmail.senmail()

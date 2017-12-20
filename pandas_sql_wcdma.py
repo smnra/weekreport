@@ -6,10 +6,12 @@ import arrow
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import ticker
+import SMTPProxy
 from sqlalchemy import create_engine
 from matplotlib.dates import AutoDateLocator, DateFormatter
 
+
+filename = []    #定义邮件附件文件名列表
 
 
 def getDateRange():
@@ -83,6 +85,7 @@ class CreateChart:
         self.figIndex = figIndex
         self.yRange = yRange
         self.rrcCity = rrcCity
+        self.pngName = ''
         self.rrcFig = plt.figure(self.figIndex,figsize=(8,5)) # Create a `figure' instance
         self.rrcAx = self.rrcFig.add_subplot(111) # Create a `axes' instance in the figure
         #Ax.plot(X1, Y1, X2, Y2) # Create a Line2D instance in the axes
@@ -104,7 +107,8 @@ class CreateChart:
         self.rrcFig.autofmt_xdate()                                    #设置x轴时间外观
         plt.ylim(self.yRange)                                            #Y轴 显示范围
         self.rrcAx.legend(self.rrcCity.columns,loc="lower center", shadow=True,bbox_to_anchor=(1.05,0.4) ,ncol=1)  #设置显示图例 以及图例的位置,级是否有阴影效果
-        self.rrcFig.savefig(filePath + tdate['startDate'] + '_' + tdate['endDate'] + '_WCDMA_' + rowName + '.png')    #保存为 本月起始日期_结束日期_LTE_KPI名称.PNG图片
+        self.pngName = filePath + tdate['startDate'] + '_' + tdate['endDate'] + '_WCDMA_' + rowName + '.png'
+        self.rrcFig.savefig(self.pngName)    #保存为 本月起始日期_结束日期_LTE_KPI名称.PNG图片
 
 
 
@@ -132,6 +136,7 @@ for i,kpiName in enumerate(df1.columns[2:]):                               #此�
     kpi = df1[['日期','地市',kpiName]].fillna(0)                           #取 '日期','地市','rrc建立成功率' 三列数据
     kpiCity = kpi.pivot_table(kpiName, ['日期'], '地市').sort_index(ascending=True)        # 数据列为 'rrc建立成功率', '日期' 列不变,把 '地市'这一列 按照内容转换为多列
     kpiChart = CreateChart()
+    filename.append(kpiChart.pngName)
     kpiChart.createCharts(kpiCity,kpiName,kpiName,yRanges[i])
 
 
@@ -139,8 +144,8 @@ for i,kpiName in enumerate(df1.columns[2:]):                               #此�
 
 mailreceiver = [ 'jing.2.zhang@huanuo-nsb.com']
 mailcc = [ 'smnra@163.com']
-mailTitle = '4G_Top5小区_AM'
-mailBody = 'LTE ' + start_datetime + ' - ' + end_datetime + ' Top5 小区'
+mailTitle = 'WCDMA ' + tdate['startDate'] + '-' + tdate['endDate'] + ' 周报材料'
+mailBody = 'WCDMA ' + tdate['startDate'] + '-' + tdate['endDate'] + ' 周报材料'
 mailAttachments = [filename]
 
 sendmail = SMTPProxy.SendMail(mailreceiver, mailcc, mailTitle, mailBody, mailAttachments)    #邮件发送
