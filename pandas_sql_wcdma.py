@@ -2,6 +2,7 @@
 
 from  datetime  import datetime
 import os
+import arrow
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -11,21 +12,42 @@ from matplotlib.dates import AutoDateLocator, DateFormatter
 
 
 
-def getMonthFirstDay():
-    dt = datetime.today()                                                     #获取当前日期
-    firstDate = dt.strftime("%Y%m") + '01'                                  #当前月第一天日期
-    todayDate = dt.strftime("%Y%m%d")
-    lastDate = datetime(dt.year,dt.month +1,1).strftime("%Y%m") + '01'      #下个月第一天日期
-    return [firstDate,todayDate,lastDate]
+def getDateRange():
+    '''
+    #获取参数(默认为当天)所在月份的第一个完整周 周一的日期
+    '''
+    now = arrow.now()                                                        #当前时间
+    rangeDate={}                                                             #定义返回值  字典
+    rangeDate['today'] = arrow.now().format('YYYYMMDD')                 #今日的日期
 
-#tdate = getMonthFirstDay()
-tdate = ['20171201','20171211','20180101']
+    lastMonth_1st_day = now.floor('month').replace(months = -1)             #上个月1号的日期
+    thisMonth_1st_day = now.floor('month')                                  #这个月1号的日期
+    nextMonth_1st_day = now.floor('month').replace(months = +1)             #下个月1号的日期
+    lastWeek_Monday = now.replace(weeks = -1).floor('week')             #上一周周一的日期
+    thisWeek_Monday = now.floor('week')                                 #这一周周一的日期
+    if thisMonth_1st_day.isoweekday() == 1 :                                #如果这个月的1号是周一,
+        thisMonth_1st_Monday = now.floor('month')                           #则这个月的第一个完整周 的 周一的日期 就是当月的1号的日期
+    else :
+        thisMonth_1st_Monday = now.floor('month').replace(weeks = +1).floor('week')      #否则这个月的第一个完整周 的 周一的日期 就是当月1号所在的下一周的周一的日期
+
+    if thisWeek_Monday - thisMonth_1st_Monday == thisWeek_Monday - thisWeek_Monday :       #如果 这一周周一的日期  减去这个月的第一个完整周 周一的日期 如果结果等于0
+        rangeDate['startDate'] = lastMonth_1st_day.format('YYYYMMDD')               #开始时间就是上个月1号
+        rangeDate['endDate'] = thisMonth_1st_Monday.format('YYYYMMDDH')               #结束时间就是这个月的第一个完整周 周一的日期
+    else :
+        rangeDate['startDate'] = thisMonth_1st_day.format('YYYYMMDD')               #开始时间就是这个月1号
+        rangeDate['endDate'] = nextMonth_1st_day.format('YYYYMMDD')                 #结束时间就是这个月的第一个完整周 周一的日期
+
+    return rangeDate
+
+tdate = getDateRange()
+
+#tdate = ['20171201','20171211','20180101']
 
 
 
 
 #用sqlalchemy创建引擎
-sql = "select * from city_wcdma_day where 地市 <>'其他'  AND 日期>= '20171201' AND 日期 < '20180101'"
+sql = "select * from city_wcdma_day where 地市 <>'其他'  AND 日期>= '" + tdate['startDate'] + "' AND 日期 < '" + tdate['endDate'] + "'"
 engine = create_engine('mysql+pymysql://root:10300@192.168.3.74:50014/3g_kpi_browsing?charset=utf8')
 #df.to_sql('tick_data',engine,if_exists='append')#存入数据库，这句有时候运行一次报错，运行第二次就不报错了，不知道为什么  
 df1 = pd.read_sql(sql,engine)    #read_sql直接返回一个DataFrame对象      设置多个index，只要将index_col的值设置为列表
@@ -36,7 +58,7 @@ if os.path.exists(filePath):                                                   #
 else:
     os.makedirs(filePath)                                                           #如果不存在 创建目录
 
-writer = pd.ExcelWriter(filePath + tdate[0] + '_' + tdate[1] + '_WCDMA.xlsx')       #保存表格为excel      文件名称为本月起始日期_结束日期_WCDMA.xlsx
+writer = pd.ExcelWriter(filePath + tdate['startDate'] + '_' + tdate['endDate'] + '_WCDMA.xlsx')       #保存表格为excel      文件名称为本月起始日期_结束日期_WCDMA.xlsx
 df1.to_excel(writer,'Sheet1')                                                                  #保存表格为excel
 writer.save()                                                                                   #保存表格为excel
 
@@ -82,7 +104,7 @@ class CreateChart:
         self.rrcFig.autofmt_xdate()                                    #设置x轴时间外观
         plt.ylim(self.yRange)                                            #Y轴 显示范围
         self.rrcAx.legend(self.rrcCity.columns,loc="lower center", shadow=True,bbox_to_anchor=(1.05,0.4) ,ncol=1)  #设置显示图例 以及图例的位置,级是否有阴影效果
-        self.rrcFig.savefig(filePath + tdate[0] + '_' + tdate[1] + '_WCDMA_' + rowName + '.png')    #保存为 本月起始日期_结束日期_LTE_KPI名称.PNG图片
+        self.rrcFig.savefig(filePath + tdate['startDate'] + '_' + tdate['endDate'] + '_WCDMA_' + rowName + '.png')    #保存为 本月起始日期_结束日期_LTE_KPI名称.PNG图片
 
 
 
@@ -105,7 +127,6 @@ kpiChart.createCharts(kpiCity,'同频硬切换成功率(%)','同频硬切换成�
 
 yRanges = ((99,100),(99,100),(99,100),(0,0.5),(0,0.5),(99,100),(25,55),(0,100),(75,100),(-110,-100),(0,10),(0,8000),(0,800000),(0,100000))
 
-
 for i,kpiName in enumerate(df1.columns[2:]):                               #此种for语句 表示 遍历 列表df1.columns[2:],i为序号(1,2,3,4,5....)  kpiName 为列表df1.columns[2:]中的每一个元素
     df1[kpiName] = df1[kpiName].astype(np.float64)                          #类型转换,将列转换为 float64 类型
     kpi = df1[['日期','地市',kpiName]].fillna(0)                           #取 '日期','地市','rrc建立成功率' 三列数据
@@ -116,48 +137,11 @@ for i,kpiName in enumerate(df1.columns[2:]):                               #此�
 
 
 
+mailreceiver = [ 'jing.2.zhang@huanuo-nsb.com']
+mailcc = [ 'smnra@163.com']
+mailTitle = '4G_Top5小区_AM'
+mailBody = 'LTE ' + start_datetime + ' - ' + end_datetime + ' Top5 小区'
+mailAttachments = [filename]
 
-#plt.show()
-
-
-
-
-
-
-
-
-
-'''
-#rrcCity._info_axis.base
-
-erab = df1[['日期','地市','erab建立成功率']]                            #取 '日期','地市','rrc建立成功率' 三列数据
-erabCity = erab.pivot_table('erab建立成功率', ['日期'], '地市')         # 数据列为 'rrc建立成功率', '日期' 列不变,把 '地市'这一列 按照内容转换为多列
-erabFig = plt.figure(2,figsize=(8,4)) # Create a `figure' instance
-erabAx = erabFig.add_subplot(111) # Create a `axes' instance in the figure
-#Ax.plot(X1, Y1, X2, Y2) # Create a Line2D instance in the axes
-erabHandle = erabAx.plot(erabCity) # Create a Line2D instance in the axes  根据erabCity画图
-
-
-
-#erabAx.yaxis.set_major_formatter(DateFormatter('%m-%d'))  # 设置y轴主标签文本的格式
-erabAx.xaxis.set_major_formatter(DateFormatter('%Y-%m-%d'))      #设置X时间显示格式
-erabAx.spines["right"].set_color("none")                       #设置右轴颜色为none
-erabAx.spines["top"].set_color("none")                       #设置上轴颜色为none
-erabAx.set_title("ERAB建立成功率")                              #设置图表标题
-erabFig.autofmt_xdate()        #设置x轴时间外观
-plt.ylim(99,100)
-erabAx.legend(erabCity.columns,loc="best", ncol=3, shadow=True)
-#erabFig.show()
-#Fig.savefig("test.pdf")
-print(0)
-#rrcCanvas.print_figure('demo1.png')                           #保存为.png图片
-'''
-
-
-
-
-
-
-
-
-
+sendmail = SMTPProxy.SendMail(mailreceiver, mailcc, mailTitle, mailBody, mailAttachments)    #邮件发送
+sendmail.senmail()
